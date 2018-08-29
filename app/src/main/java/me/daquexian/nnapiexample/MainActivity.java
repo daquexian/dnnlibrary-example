@@ -39,7 +39,7 @@ public class MainActivity extends AppCompatActivity
     implements EasyPermissions.PermissionCallbacks {
 
     @SuppressWarnings("unused")
-    private static final String TAG = "NNAPI Example";
+    private static final String TAG = "Daq Example";
     private static final int PICK_IMAGE = 123;
 
     String[] perms = {Manifest.permission.READ_EXTERNAL_STORAGE};
@@ -84,15 +84,14 @@ public class MainActivity extends AppCompatActivity
 
         if (EasyPermissions.hasPermissions(this, perms)) {
             initListener();
-            Log.d(TAG, "onCreate: aaa");
             ModelBuilder modelBuilder = new ModelBuilder();
-            Log.d(TAG, "onCreate: aaa");
-            modelBuilder.readFile(getAssets(), "mobilenetv2.daq");
-            Log.d(TAG, "onCreate: aaa");
-            modelBuilder.setOutput("prob");
-            Log.d(TAG, "onCreate: aaa");
+            // Uncomment the following two lines if use squeezenet
+            // modelBuilder.readFile(getAssets(), "squeezenet1.1.daq");
+            // modelBuilder.setOutput("squeezenet0_pool3_fwd");
+            // Comment the following two lines if use squeezenet
+            modelBuilder.readFile(getAssets(), "mobilenetv2.daq");    // The output name is from onnx model
+            modelBuilder.setOutput("mobilenetv20_output_pred_fwd");
             model = modelBuilder.compile(ModelBuilder.PREFERENCE_FAST_SINGLE_ANSWER);
-            Log.d(TAG, "onCreate: aaa");
         } else {
             // Do not have permissions, request them now
             EasyPermissions.requestPermissions(this, "Please grant",
@@ -145,17 +144,21 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    /**
+     * Exactly same as https://github.com/onnx/models/tree/master/models/image_classification/squeezenet
+     */
     private float[] getInputDataSqueezeNet(Bitmap bitmap) {
-        final int INPUT_SIDE_LENGTH = 227;
+        final int INPUT_SIDE_LENGTH = 224;
 
         Mat imageMat = new Mat();
 
         Utils.bitmapToMat(bitmap, imageMat);
 
-        Imgproc.cvtColor(imageMat, imageMat, Imgproc.COLOR_RGBA2BGR);
-        imageMat = centerCropAndScale(imageMat, INPUT_SIDE_LENGTH);
-        Core.subtract(imageMat, new Scalar(104, 117, 123), imageMat);
-        imageMat.convertTo(imageMat, CvType.CV_32FC3);
+        Imgproc.cvtColor(imageMat, imageMat, Imgproc.COLOR_RGBA2RGB);
+        imageMat = scaleAndCenterCrop(imageMat, INPUT_SIDE_LENGTH);
+        imageMat.convertTo(imageMat, CvType.CV_32FC3, 1. / 255);
+        imageMat = normalize(imageMat,
+                new Scalar(0.485, 0.456, 0.406), new Scalar(0.229, 0.224, 0.225));
 
         float[] inputData = new float[imageMat.width() * imageMat.height() * imageMat.channels()];
 
@@ -164,6 +167,30 @@ public class MainActivity extends AppCompatActivity
         return inputData;
     }
 
+    /**
+     * Exactly same as https://github.com/onnx/models/tree/master/models/image_classification/mobilenet
+     */
+    private float[] getInputDataMobileNetv2(Bitmap bitmap) {
+        final int INPUT_SIDE_LENGTH = 224;
+
+        Mat imageMat = new Mat();
+
+        Utils.bitmapToMat(bitmap, imageMat);
+
+        Imgproc.cvtColor(imageMat, imageMat, Imgproc.COLOR_RGBA2RGB);
+        imageMat = scaleAndCenterCrop(imageMat, INPUT_SIDE_LENGTH);
+        imageMat.convertTo(imageMat, CvType.CV_32FC3, 1. / 255);
+        imageMat = normalize(imageMat,
+                new Scalar(0.485, 0.456, 0.406), new Scalar(0.229, 0.224, 0.225));
+
+        float[] inputData = new float[imageMat.width() * imageMat.height() * imageMat.channels()];
+
+        imageMat.get(0, 0, inputData);
+
+        return inputData;
+    }
+
+    @Deprecated
     private float[] getInputDataResNet18(Bitmap bitmap) {
         final int INPUT_SIDE_LENGTH = 224;
 
@@ -183,6 +210,7 @@ public class MainActivity extends AppCompatActivity
         return inputData;
     }
 
+    @Deprecated
     private float[] getInputDataLeNet(Bitmap bitmap) {
         final int INPUT_LENGTH = 28;
 
@@ -202,6 +230,39 @@ public class MainActivity extends AppCompatActivity
         inputMat.get(0, 0, inputData);
 
         return inputData;
+    }
+
+    /**
+     *
+     * @param mat const image mat, 32FC3
+     * @param mean mean value scalar
+     * @param std standard deviation scalar
+     * @return the normalized mat
+     */
+    private Mat normalize(Mat mat, Scalar mean, Scalar std) {
+        Mat _mat = mat.clone();
+        Core.subtract(_mat, mean, _mat);
+        Core.divide(_mat, std, _mat);
+        return _mat;
+    }
+
+    private Mat scaleAndCenterCrop(Mat mat, int sideLength) {
+        Mat _mat = mat.clone();
+        double rate;
+        if (_mat.height() > _mat.width()) {
+            rate = 1. * sideLength / _mat.width();
+        } else {
+            rate = 1. * sideLength / _mat.height();
+        }
+
+        Imgproc.resize(_mat, _mat, new Size(0, 0), rate, rate, Imgproc.INTER_LINEAR);
+
+        if (_mat.height() > _mat.width()) {
+            _mat = new Mat(_mat, new Rect(0, (_mat.height() - _mat.width()) / 2, _mat.width(), _mat.width()));
+        } else {
+            _mat = new Mat(_mat, new Rect((_mat.width() - _mat.height()) / 2, 0, _mat.height(), _mat.height()));
+        }
+        return _mat;
     }
 
     private Mat centerCropAndScale(Mat mat, int sideLength) {
