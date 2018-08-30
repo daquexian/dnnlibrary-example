@@ -1,4 +1,0 @@
-cmake-build-*/
-build/
-build_host_protoc/
-compile_commands.json
