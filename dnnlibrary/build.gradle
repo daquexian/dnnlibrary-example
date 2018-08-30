@@ -17,8 +17,8 @@ android {
     defaultConfig {
         minSdkVersion 28
         targetSdkVersion 28
-        versionCode 4
-        versionName "v0.2.3"
+        versionCode 10
+        versionName "v0.5.2"
 
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
@@ -47,7 +47,7 @@ publish {
     userOrg = 'daquexian566'
     groupId = 'me.daquexian'
     artifactId = 'dnnlibrary'
-    publishVersion = '0.2.5'
+    publishVersion = '0.5.2'
     desc = 'Daquexian\'s NNAPI Library. Run neural network using the new NNAPI on Android !'
     website = 'https://github.com/daquexian/DNNLibrary'
 }
