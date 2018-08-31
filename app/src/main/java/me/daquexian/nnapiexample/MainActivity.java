@@ -85,13 +85,23 @@ public class MainActivity extends AppCompatActivity
         if (EasyPermissions.hasPermissions(this, perms)) {
             initListener();
             ModelBuilder modelBuilder = new ModelBuilder();
-            // Uncomment the following two lines if use squeezenet
-            // modelBuilder.readFile(getAssets(), "squeezenet1.1.daq");
-            // modelBuilder.setOutput("squeezenet0_pool3_fwd");
-            // Comment the following two lines if use squeezenet
-            modelBuilder.readFile(getAssets(), "mobilenetv2.daq");    // The output name is from onnx model
-            modelBuilder.setOutput("mobilenetv20_output_pred_fwd");
-            model = modelBuilder.compile(ModelBuilder.PREFERENCE_FAST_SINGLE_ANSWER);
+            model = modelBuilder
+                    .readFile(getAssets(), "mobilenetv2.daq")
+                    .setOutput("mobilenetv20_output_pred_fwd")    // The output name is from onnx model
+                    .compile(ModelBuilder.PREFERENCE_FAST_SINGLE_ANSWER);
+            /*
+            if you want to try squeezenet:
+            model = modelBuilder
+                    .readFile(getAssets(), "squeezenet1.1.daq");
+                    .setOutput("squeezenet0_pool3_fwd");
+                    .compile(ModelBuilder.PREFERENCE_FAST_SINGLE_ANSWER);
+             */
+
+            /*
+            The resources a ModelBuilder object holds will be released on gc
+            Call dispose() if you want to release it manually
+            */
+            modelBuilder.dispose();
         } else {
             // Do not have permissions, request them now
             EasyPermissions.requestPermissions(this, "Please grant",
@@ -296,6 +306,11 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        /*
+        The resources a Model object holds will be released on gc
+        Call dispose() if you want to release it manually
+        */
+        model.dispose();
     }
 
     @Override
