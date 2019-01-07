@@ -137,14 +137,16 @@ public class MainActivity extends AppCompatActivity
 
                 float[] inputData = getInputDataSqueezeNet(selectedImage);
 
+                long startTime = System.currentTimeMillis();
                 float[] result = model.predict(inputData);
+                long endTime = System.currentTimeMillis();
 
                 Log.d(TAG, "onActivityResult: " + Arrays.toString(result));
 
                 int predictNumber = getMaxIndex(result);
 
                 textView.setText(getResources().getString(
-                        R.string.predict_text, synsetWords.get(predictNumber)
+                        R.string.predict_text, synsetWords.get(predictNumber), endTime-startTime
                 ));
 
             } catch (Exception e) {
