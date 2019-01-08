@@ -1,5 +1,6 @@
 # DNNLibrary Example
 
+[![Build Status](https://travis-ci.com/daquexian/dnnlibrary-example.svg?branch=master)](https://travis-ci.com/daquexian/dnnlibrary-example)
 [![Download](https://api.bintray.com/packages/daquexian566/maven/dnnlibrary/images/download.svg) ](https://bintray.com/daquexian566/maven/dnnlibrary/_latestVersion)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)
 
