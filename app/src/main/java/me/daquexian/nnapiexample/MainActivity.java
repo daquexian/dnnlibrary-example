@@ -312,7 +312,9 @@ public class MainActivity extends AppCompatActivity
         The resources a Model object holds will be released on gc
         Call dispose() if you want to release it manually
         */
-        model.dispose();
+        if (model != null) {
+            model.dispose();
+        }
     }
 
     @Override
