@@ -7,7 +7,6 @@ import android.graphics.BitmapFactory;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -28,7 +27,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import me.daquexian.dnnlibrary.Model;
@@ -49,7 +47,8 @@ public class MainActivity extends AppCompatActivity
     private ImageView imageView;
     private Bitmap selectedImage;
     private List<String> synsetWords = new ArrayList<>();
-    private Model model;
+    private Model quantModel;
+    private Model floatModel;
 
     static {
         OpenCVLoader.initDebug();
@@ -85,13 +84,24 @@ public class MainActivity extends AppCompatActivity
         if (EasyPermissions.hasPermissions(this, perms)) {
             initListener();
             ModelBuilder modelBuilder = new ModelBuilder();
-            model = modelBuilder
+            quantModel = modelBuilder
+                    .readFile(getAssets(), "quant-mobilenetv2.daq")
+                    .setOutput("mobilenetv20_output_pred_fwd")    // The output name is from onnx model
+                    .compile(ModelBuilder.PREFERENCE_FAST_SINGLE_ANSWER);
+            ModelBuilder modelBuilder2 = new ModelBuilder();
+            floatModel = modelBuilder2
                     .readFile(getAssets(), "mobilenetv2.daq")
                     .setOutput("mobilenetv20_output_pred_fwd")    // The output name is from onnx model
                     .compile(ModelBuilder.PREFERENCE_FAST_SINGLE_ANSWER);
             /*
+            floatModel = modelBuilder
+                    .readFile(getAssets(), "mobilenetv2.daq")
+                    .setOutput("mobilenetv20_output_pred_fwd")    // The output name is from onnx floatModel
+                    .compile(ModelBuilder.PREFERENCE_FAST_SINGLE_ANSWER);
+            */
+            /*
             if you want to try squeezenet:
-            model = modelBuilder
+            floatModel = modelBuilder
                     .readFile(getAssets(), "squeezenet1.1.daq");
                     .setOutput("squeezenet0_pool3_fwd");
                     .compile(ModelBuilder.PREFERENCE_FAST_SINGLE_ANSWER);
@@ -102,6 +112,7 @@ public class MainActivity extends AppCompatActivity
             Call dispose() if you want to release it manually
             */
             modelBuilder.dispose();
+            modelBuilder2.dispose();
         } else {
             // Do not have permissions, request them now
             EasyPermissions.requestPermissions(this, "Please grant",
@@ -135,18 +146,22 @@ public class MainActivity extends AppCompatActivity
 
                 imageView.setImageBitmap(selectedImage);
 
-                float[] inputData = getInputDataSqueezeNet(selectedImage);
+                byte[] quantInputData = getInputDataQuantMobileNetv2(selectedImage);
+                long quantStartTime = System.currentTimeMillis();
+                float[] quantResult = quantModel.predict(quantInputData);
+                long quantEndTime = System.currentTimeMillis();
+                String quantPredictCls = synsetWords.get(getMaxIndex(quantResult));
 
-                long startTime = System.currentTimeMillis();
-                float[] result = model.predict(inputData);
-                long endTime = System.currentTimeMillis();
-
-                Log.d(TAG, "onActivityResult: " + Arrays.toString(result));
-
-                int predictNumber = getMaxIndex(result);
+                float[] floatInputData = getInputDataMobileNetv2(selectedImage);
+                long floatStartTime = System.currentTimeMillis();
+                float[] floatResult = floatModel.predict(floatInputData);
+                long floatEndTime = System.currentTimeMillis();
+                String floatPredictCls = synsetWords.get(getMaxIndex(floatResult));
 
                 textView.setText(getResources().getString(
-                        R.string.predict_text, synsetWords.get(predictNumber), endTime-startTime
+                        R.string.predict_text,
+                        floatPredictCls, floatEndTime - floatStartTime,
+                        quantPredictCls, quantEndTime - quantStartTime
                 ));
 
             } catch (Exception e) {
@@ -154,6 +169,12 @@ public class MainActivity extends AppCompatActivity
                 textView.setText(e.getMessage());
             }
         }
+    }
+
+    private Mat quantizeInput(Mat img, double scale, int zeroPoint) {
+        Mat quantImg = new Mat();
+        img.convertTo(quantImg, CvType.CV_8UC3, 1. / scale, zeroPoint);
+        return quantImg;
     }
 
     /**
@@ -175,6 +196,27 @@ public class MainActivity extends AppCompatActivity
         float[] inputData = new float[imageMat.width() * imageMat.height() * imageMat.channels()];
 
         imageMat.get(0, 0, inputData);
+
+        return inputData;
+    }
+
+    private byte[] getInputDataQuantMobileNetv2(Bitmap bitmap) {
+        final int INPUT_SIDE_LENGTH = 224;
+
+        Mat imageMat = new Mat();
+
+        Utils.bitmapToMat(bitmap, imageMat);
+
+        Imgproc.cvtColor(imageMat, imageMat, Imgproc.COLOR_RGBA2RGB);
+        imageMat = scaleAndCenterCrop(imageMat, INPUT_SIDE_LENGTH);
+        imageMat.convertTo(imageMat, CvType.CV_32FC3, 1. / 255);
+        imageMat = normalize(imageMat,
+                new Scalar(0.485, 0.456, 0.406), new Scalar(0.229, 0.224, 0.225));
+        Mat quantImgMat = quantizeInput(imageMat, 0.018658447265625, 114);
+
+        byte[] inputData = new byte[quantImgMat.width() * quantImgMat.height() * quantImgMat.channels()];
+
+        quantImgMat.get(0, 0, inputData);
 
         return inputData;
     }
@@ -312,8 +354,13 @@ public class MainActivity extends AppCompatActivity
         The resources a Model object holds will be released on gc
         Call dispose() if you want to release it manually
         */
-        if (model != null) {
-            model.dispose();
+        if (quantModel != null) {
+            quantModel.dispose();
+            quantModel = null;
+        }
+        if (floatModel != null) {
+            floatModel.dispose();
+            floatModel = null;
         }
     }
 
